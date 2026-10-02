@@ -1,0 +1,8 @@
+  :root { --sky1:#8fd3f4; --sky2:#e8f7ff; --ink:#1d3557; box-sizing:border-box;
+    padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px); }
+  html,body { height:100%; margin:0; overflow:hidden; background:var(--sky1); }
+  #stage { position:fixed; inset:0; }
+  canvas { display:block; }
+  .hint { position:fixed; left:0; right:0; bottom:calc(14px + env(safe-area-inset-bottom,0px));
+    text-align:center; font:600 15px/1.3 system-ui,-apple-system,"Segoe UI",sans-serif; color:var(--ink); opacity:.75;
+    pointer-events:none; }
