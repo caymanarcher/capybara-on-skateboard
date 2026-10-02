@@ -1,4 +1,4 @@
-let t = 0, jumpY = 0, vy = 0, nextAuto = 150;
+let t = 0, jumpY = 0, vy = 0, nextAuto = 150, spin = 0, flipping = false, parts = [];
 const reduce = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
 const speed = reduce ? 1 : 4;
 const mod = (a, n) => ((a % n) + n) % n;
@@ -9,7 +9,13 @@ function setup() {
 }
 function windowResized() { resizeCanvas(windowWidth, windowHeight); }
 
-function jump() { if (jumpY === 0) vy = -20; }
+function jump() {
+  if (jumpY === 0) vy = -15;
+  else if (!flipping) { // second press in the air = backflip
+    flipping = true; spin =0;
+    burst(width * 0.36, height * 0.62, 24, ["#ff1493", "#ffd23f", "#3bceac", "#ffffff"], 6);
+  }
+}
 function mousePressed() { jump(); }
 function touchStarted() { jump(); return false; }
 function keyPressed() { if (key === " ") { jump(); return false; } }
@@ -21,28 +27,39 @@ function draw() {
   const shoreY = height * 0.64;
   const s = constrain(min(width, height) / 520, 0.6, 1.8);
 
-
-  if (--nextAuto <= 0) { jump(); nextAuto = 200 + random(150); }
+  if (--nextAuto <= 0) { jump(); nextAuto = 2000 + random(0); }
   if (jumpY !== 0 || vy !== 0) {
-    vy += 0.9; jumpY += vy;
-    if (jumpY >= 0) { jumpY = 0; vy = 0; }
+    vy += 0.6; jumpY += vy;
+    if (jumpY >= 0) {
+      jumpY = 0; vy = 0;
+      burst(width * 0.70, groundY + 28 * s, 16, ["#f6e3b4", "#e2c48c", "#ffffff"], 3);
+    }
   }
+  if (flipping) { spin += .4; if (spin >= TWO_PI) { flipping = false; spin = 0; } }
 
   drawSky(horizon, s);
   drawSea(horizon, shoreY, s);
   drawBeach(shoreY, groundY, s);
   drawPalms(groundY, s);
   drawBoardwalk(groundY, s);
+  fill(255, 110, 60, 55 * dusk()); rect(0, 0, width, height); // sunset glow
 
   // capybara + board
   const bob = jumpY === 0 ? sin(t * 0.25) * 1.2 * s : 0;
   push();
   translate(width * 0.36, groundY + 18 * s - 24 * s + jumpY * s + bob);
   scale(s);
-  rotate(jumpY !== 0 ? radians(-8 + vy * 0.9) : 0);
+  rotate((jumpY !== 0 ? radians(-8 + vy * 0.9) : 0) + spin);
   drawBoard();
   drawCapybara();
   pop();
+
+  // wheel sparks + particles
+  if (jumpY === 0 && frameCount % 2 === 0)
+    for (const wx of [-45, 45])
+      parts.push({ x: width * 0.36 + wx * s, y: groundY + 30 * s, vx: random(-4, -1.5), vy: random(-2.5, -0.5),
+        life: random(12, 24), max: 24, c: random(["#ffd23f", "#ff7f50", "#ffffff"]), r: random(1.5, 3.5) * s });
+  updateParts();
 
   // speed lines
   stroke(255, 255, 255, 170); strokeWeight(3 * s);
@@ -56,12 +73,18 @@ function draw() {
 
 function drawSky(horizon, s) {
   for (let y = 0; y < horizon; y += 4) {
-    stroke(lerpColor(color("#3aa8ee"), color("#c9efff"), y / horizon));
+    stroke(lerpColor(lerpColor(color("#3aa8ee"), color("#4a2480"), dusk()),
+      lerpColor(color("#c9efff"), color("#ffb36b"), dusk()), y / horizon));
     line(0, y, width, y);
   }
   noStroke();
+  // stars come out at dusk
+  for (let i = 0; i < 50; i++) {
+    fill(255, 255, 255, 255 * max(0, dusk() - 0.45) * 1.8 * (0.5 + 0.5 * sin(t * 0.05 + i)));
+    circle((i * 137) % width, ((i * 61) % 100) / 100 * horizon * 0.8, 2.2 * s);
+  }
   // sun with glow
-  const sx = width * 0.8, sy = height * 0.16;
+  const sx = width * 0.8, sy = height * (0.16 + 0.26 * dusk());
   fill(255, 245, 190, 70); circle(sx, sy, 190 * s);
   fill(255, 245, 190, 120); circle(sx, sy, 130 * s);
   fill("#fff6c2"); circle(sx, sy, 80 * s);
@@ -75,6 +98,15 @@ function drawSky(horizon, s) {
     ellipse(cx + 32 * s, cy - 14 * s, 76 * s, 36 * s);
     ellipse(cx - 32 * s, cy - 8 * s, 62 * s, 28 * s);
   }
+  // seagulls
+  push(); noFill(); stroke(255); strokeWeight(2.5 * s);
+  for (let i = 0; i < 3; i++) {
+    const gx = mod(i * 420 + t * 0.6, width + 200) - 100;
+    const gy = height * (0.2 + 0.05 * i) + sin(t * 0.02 + i) * 10 * s;
+    const w = 13 * s, f = sin(t * 0.12 + i * 2) * 6 * s;
+    line(gx - w, gy - f, gx, gy); line(gx, gy, gx + w, gy - f);
+  }
+  pop();
 }
 
 function drawSea(horizon, shoreY, s) {
@@ -216,12 +248,35 @@ function drawCapybara() {
   arc(70, -42, 14, 8, 0.1, PI - 0.3);
   noStroke();
   // sunglasses
-  fill("#22201a99"); rect(46, -68, 24, 11, 4); rect(32, -66, 16, 3, 1);
+  fill("#111"); rect(46, -68, 24, 11, 4); rect(32, -66, 16, 3, 1);
   fill(255, 255, 255, 140); rect(50, -66, 6, 3, 1);
-// tiny hot pink cowboy hat
-fill("#ff1493");
-ellipse(52, -75, 32, 7);              // brim
-rect(43, -88, 18, 14, 5, 5, 1, 1);    // crown
-fill("#c2185b");
-rect(43, -81, 18, 3);                 // hat band
+  // tiny hot pink cowboy hat
+  fill("#ff1493");
+  ellipse(52, -75, 32, 7);
+  rect(43, -88, 18, 14, 5, 5, 1, 1);
+  fill("#c2185b"); rect(43, -81, 18, 3);
+  pop();
+}
+
+// 0 = bright day, 1 = deep dusk (cycles every ~30 seconds)
+function dusk() { return (1 - cos(t * 0.0008)) / 2; }
+
+function burst(x, y, n, cols, sp) {
+  for (let i = 0; i < n; i++) {
+    const a = random(TWO_PI), v = random(1, sp);
+    parts.push({ x, y, vx: cos(a) * v, vy: sin(a) * v - 1, life: random(25, 45), max: 45, c: random(cols), r: random(2, 5) });
+  }
+}
+
+function updateParts() {
+  push(); noStroke();
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const p = parts[i];
+    p.x += p.vx; p.y += p.vy; p.vy += 0.12; p.life--;
+    if (p.life <= 0) { parts.splice(i, 1); continue; }
+    drawingContext.globalAlpha = p.life / p.max;
+    fill(p.c); circle(p.x, p.y, p.r * 2);
+  }
+  drawingContext.globalAlpha = 1;
+  pop();
 }
